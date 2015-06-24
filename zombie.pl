@@ -5,6 +5,7 @@ use warnings;
 use Getopt::Long; 
 use Pod::Usage; 
 use POSIX qw(strftime);
+use QnMSG qw(get_users); 
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -52,10 +53,8 @@ GetOptions(
 # help message 
 if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 
-# list of all users 
-open my $passwd, '<', '/etc/passwd' or die "Cannot open /etc/passwd\n"; 
-my @users = map { (split ':')[0] } grep /\/home2?\//, <$passwd>; 
-close $passwd; 
+# users on system 
+my @users = get_users();  
 
 # pipe to pestat 
 my %pestat; 
