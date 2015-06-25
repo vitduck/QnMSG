@@ -6,7 +6,6 @@ use File::Basename;
 use Getopt::Long; 
 use Pod::Usage; 
 use POSIX qw(strftime);
-use QnMSG qw(get_users); 
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -53,9 +52,6 @@ GetOptions(
 
 # help message 
 if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
-
-# users on system 
-my @users = get_users();  
 
 # pipe to pestat 
 my %pestat; 

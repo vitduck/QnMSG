@@ -12,8 +12,8 @@ our @EXPORT = qw( get_users );
 #########
 sub get_users { 
     open my $passwd, '<', '/etc/passwd' or die "Cannot open /etc/passwd\n"; 
-    my @users = map { (split ':')[0] } grep /\/home2?\//, <$passwd>; 
+    my %users = map { (split ':')[0,5] } grep /\/home2?\//, <$passwd>; 
     close $passwd; 
     
-    return @users; 
+    return %users;  
 }
