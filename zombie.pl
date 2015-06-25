@@ -81,9 +81,12 @@ if ( @nodes ) {
     print "Scanning for zombie ...\n"; 
     my $count; 
     open my $umbrella, '>', $output or die "Cannot open $output\n"; 
-    for my $node ( sort keys %pestat ) { 
+    my @nodes = sort keys %pestat; 
+    for my $node ( @nodes ) { 
         # print status line and # skip down* node 
         if ( print_status(++$count, $node, $pestat{$node}) ) { next } 
+        # line break for last node 
+        if ( $node eq $nodes[-1] && $count % 8 != 0 ) { print "\n" }; 
         zombie_sweep($node, $pestat{$node}, $umbrella); 
     }
     close $umbrella; 
