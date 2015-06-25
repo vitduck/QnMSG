@@ -2,6 +2,7 @@
 
 use strict; 
 use warnings; 
+use File::Basename;
 use Getopt::Long; 
 use Pod::Usage; 
 use POSIX qw(strftime);
@@ -16,7 +17,7 @@ zombie.pl: walking dead
 
 =head1 SYNOPSIS
 
-zombie.pl [-h] [-n x031 x053 ]
+zombie.pl [-h] [-n x031 x053 ... ]
 
 =head1 OPTIONS
 
@@ -77,6 +78,7 @@ if ( @nodes ) {
         zombie_sweep($node, $pestat{$node}); 
     }
 } else { 
+    print "Scanning for zombie ...\n"; 
     my $count; 
     open my $umbrella, '>', $output or die "Cannot open $output\n"; 
     for my $node ( sort keys %pestat ) { 
@@ -85,6 +87,7 @@ if ( @nodes ) {
         zombie_sweep($node, $pestat{$node}, $umbrella); 
     }
     close $umbrella; 
+    print "Another episode of Walking Dead: $output\n"; 
 }
 
 # status line 
@@ -115,7 +118,7 @@ sub zombie_sweep {
     
     # remote connect to capture output of ps
     open my $ps, "-|", "rsh $node_id ps --no-header axo uid,user,start,time,args"; 
-    print $output "=>|$node_id|<=\n"; 
+    print $output "=|$node_id|=\n"; 
 
     # filter out the user processes 
     my @procs = grep $_->[4] ne 'ps', grep $_->[0] > 500, map [split], <$ps>; 
@@ -125,10 +128,21 @@ sub zombie_sweep {
     # in brightest day, and darkest night 
     # no zombie will escape my sight 
     for my $proc ( @procs ) { 
+        # parse file full path for filename only
+        @$proc = map { (fileparse($_))[0] } @$proc; 
+        if ( grep { $_ eq 'ps' } @$proc ) { next }
+
         # the position of pmi_proxy process in the output field 
         my ($pmi) = grep { $proc->[$_] =~ /pmi_proxy/ } 0..$#$proc; 
+        
         if ( $pmi ) { 
-            print $output "@$proc[1..3,$pmi-2..$pmi+2,-2,-1]\n";  
+            # from master to slave 
+            if ( $proc->[4] eq 'rsh' ) {
+                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
+            # from slave to master 
+            } else { 
+                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
+            }
         } else { 
             print $output  "@$proc[1..$#$proc]\n"; 
         }
