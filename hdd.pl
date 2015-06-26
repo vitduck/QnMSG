@@ -3,6 +3,7 @@
 use strict; 
 use warnings; 
 
+use File::Spec; 
 use List::Util qw( sum ); 
 use Getopt::Long; 
 use Pod::Usage; 
@@ -18,7 +19,7 @@ hdd.pl: disk usages of users
 
 =head1 SYNOPSIS
 
-hdd.pl [-h]
+hdd.pl [-h] [-d /home /home2]
 
 =head1 OPTIONS
 
@@ -28,16 +29,22 @@ hdd.pl [-h]
 
 Print the help message and exit
 
+=item B<-d>
+
+List of partitions (default: all)
+
 =back
 
 =cut 
 
 # default optional arguments 
-my $help = 0; 
+my $help       = 0; 
+my @partitions = ();  
 
 # parse optional arguments 
 GetOptions( 
     'h'       => \$help, 
+    'd=s{1,}' => \@partitions, 
 ) or pod2usage(-verbose => 1); 
 
 # help message 
@@ -55,8 +62,22 @@ my %passwd = get_user();
 # hash of df: (partition => size)
 my %df = get_partition(); 
 
+# target partitions
+if ( @partitions ) { 
+    # remove the trailing dashes  
+    @partitions = map { File::Spec->canonpath($_) } @partitions; 
+} else {  
+    # scan all partitions 
+    @partitions =  sort keys %passwd; 
+}
+    
 # print disk usage from all home partition 
-for my $home ( sort keys %passwd ) { 
+for my $home ( @partitions ) { 
+    # check against df hash 
+    unless ( exists $df{$home} ) { 
+        print "$home is not a valid partition!\n"; 
+        next; 
+    }
     # refence to hash { user => usage } 
     my $r2user = $passwd{$home};  
     
