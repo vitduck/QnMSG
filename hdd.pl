@@ -3,13 +3,13 @@
 use strict; 
 use warnings; 
 
-use List::Util qw(sum); 
+use List::Util qw( sum ); 
 use Getopt::Long; 
 use Pod::Usage; 
 
-use QnMSG;  
+use QnMSG qw( get_user :hdd ); 
 
-my @usages = qw(NAME SYSNOPSIS OPTIONS); 
+my @usages = qw( NAME SYSNOPSIS OPTIONS ); 
 
 # POD 
 =head1 NAME 
@@ -49,14 +49,18 @@ die "Require root previlege to preceed\n" unless $< == 0;
 # threadhold (GB)
 my $cutoff = 1000; 
 
-# hash of users: (home => { user => homedir })
-my %passwd = get_users(); 
+# hash of passwd: (home => { user => homedir })
+my %passwd = get_user(); 
 
-# hash of hdd: (home => { user => usage })
-my %hdd    = get_hdd(%passwd); 
+# hash of df: (partition => size)
+my %df = get_partition(); 
+
+# hash of du: (home => { user => usage })
+print "\nSummarizing disk usage ...\n"; 
+my %du = get_disk_usage(%passwd); 
 
 # print disk usage from all home partition 
-for my $home ( sort keys %hdd ) { 
-    print "\nDisk usage in $home\n"; 
-    print_hdd($hdd{$home}, $cutoff); 
+for my $home ( sort keys %du ) { 
+    print "\n$home: $df{$home} GB\n"; 
+    print_disk_usage($du{$home}, $df{$home}, $cutoff); 
 }

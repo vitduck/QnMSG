@@ -70,6 +70,7 @@ close $pestat;
 
 # In brightest day, in blackest night,
 # No zombies shall esacpe my sight.  
+my $column = 8; 
 if ( @nodes ) { 
     for my $node ( @nodes ) { 
         # skip non-existing node 
@@ -79,15 +80,23 @@ if ( @nodes ) {
 } else { 
     print "Scanning for zombie ...\n"; 
     my $count; 
-    open my $umbrella, '>', $output or die "Cannot open $output\n"; 
-    my @nodes = sort keys %pestat; 
+    open my $fh, '>', $output or die "Cannot open $output\n"; 
+
+    # sorted node list x001 ... x064
+    my @nodes   = sort keys %pestat; 
+
+    # string format 
+    my $slength = (sort {$b <=> $a} map length($_), @nodes)[0]; 
+
     for my $node ( @nodes ) { 
         # print status line and # skip down* node 
-        if ( print_status(++$count, $node, $pestat{$node}) ) { next } 
+        if ( print_status(++$count, $column, $node, $slength, $pestat{$node}) ) { next } 
+
         # line break for last node 
-        if ( $node eq $nodes[-1] && $count % 8 != 0 ) { print "\n" }; 
-        zombie_sweep($node, $pestat{$node}, $umbrella); 
+        if ( $node eq $nodes[-1] && $count % $column != 0 ) { print "\n" }; 
+
+        zombie_sweep($node, $pestat{$node}, $fh); 
     }
-    close $umbrella; 
+    close $fh; 
     print "Another episode of Walking Dead: $output\n"; 
 }
