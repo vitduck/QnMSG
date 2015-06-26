@@ -70,7 +70,6 @@ close $pestat;
 
 # In brightest day, in blackest night,
 # No zombies shall esacpe my sight.  
-my $column = 8; 
 if ( @nodes ) { 
     for my $node ( @nodes ) { 
         # skip non-existing node 
@@ -79,13 +78,14 @@ if ( @nodes ) {
     }
 } else { 
     print "Scanning for zombie ...\n"; 
-    my $count; 
     open my $fh, '>', $output or die "Cannot open $output\n"; 
 
     # sorted node list x001 ... x064
     my @nodes   = sort keys %pestat; 
 
     # string format 
+    my $count   = 0; 
+    my $column  = 4; 
     my $slength = (sort {$b <=> $a} map length($_), @nodes)[0]; 
 
     for my $node ( @nodes ) { 
