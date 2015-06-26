@@ -4,9 +4,10 @@ use strict;
 use warnings; 
 
 use List::Util qw(sum); 
-use QnMSG qw( get_users get_hdd ); 
 use Getopt::Long; 
 use Pod::Usage; 
+
+use QnMSG;  
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -48,31 +49,14 @@ die "Require root previlege to preceed\n" unless $< == 0;
 # threadhold (GB)
 my $cutoff = 1000; 
 
-# hash of users
-# ( user => homedir )
+# hash of users: (home => { user => homedir })
 my %passwd = get_users(); 
 
-# hash of hdd: ( user => du ) 
+# hash of hdd: (home => { user => usage })
 my %hdd    = get_hdd(%passwd); 
 
-# total disk usage 
-my @users    = sort keys %hdd; 
-@hdd{@users} = map { $1 if $hdd{$_} =~ /(\d+)G/ } @users; 
-
-# total disk usage 
-my $total   = sum(@hdd{@users}); 
-
-# output format for string and digit
-my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
-my $dlength = (sort {$b <=> $a} map length($_), @hdd{@users})[0]; 
-
-# print table; 
-for my $user ( sort { $hdd{$b} <=> $hdd{$a} } keys %hdd ) { 
-    printf "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $hdd{$user}, 100*$hdd{$user}/$total; 
-    $hdd{$user} >= $cutoff ? print " [*]\n" : print "\n"; 
+# print disk usage from all home partition 
+for my $home ( sort keys %hdd ) { 
+    print "\nDisk usage in $home\n"; 
+    print_hdd($hdd{$home}, $cutoff); 
 }
-
-# record break 
-my $summary = sprintf "%${slength}s  %${dlength}d GB  %6.2f %%", 'total', $total, 100; 
-print "-" x length($summary); 
-print "\n$summary\n"; 
