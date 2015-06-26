@@ -77,42 +77,36 @@ sub get_partition {
 
 # get users' disk usage 
 # arg: 
-#   - hash of user
+#   - hash ref passwd {user => homedir}
 # return: 
-#   - hash of disk usage (home => { user => usage })
+#   - hash of du (user => usage)
 sub get_disk_usage { 
-    my %passwd = @_; 
+    my ($passwd) = @_; 
     my %du; 
     
-    my $count  = 0; 
-    my $column = 4; 
+    # list users in $home partition
+    my @users = sort keys %$passwd; 
 
-    for my $home ( keys %passwd ) { 
-        # ref to hash of users in $home
-        my $r2user = $passwd{$home}; 
+    # status line format 
+    my $count   = 0; 
+    my $column  = 4; 
+    my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
 
-        # list users in $home partition
-        my @users = keys %$r2user; 
+    # loop through all ids and collect disk usage 
+    for my $user ( @users ) { 
+        my $homedir = $passwd->{$user}; 
 
-        # string format for status line 
-        my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
+        # skip system users 
+        next unless -d $homedir; 
 
-        # loop through all ids and collect disk usage 
-        for my $user ( @users ) { 
-            my $homedir = $r2user->{$user}; 
-            # only physical user 
-            next unless -d $homedir; 
+        # print status line 
+        print_status(++$count, $column, $user, $slength); 
 
-            # print status line 
-            print_status(++$count, $column, $user, $slength); 
-            
-            # line break for last user
-            if ( $user eq $users[-1] && $count % $column != 0 ) { print "\n" };
+        # line break for last user
+        if ( $user eq $users[-1] && $count % $column != 0 ) { print "\n" };
 
-            # capture du output with backtick
-            my ($usage) = (split ' ', `du -sBG $homedir`)[0]; 
-            $du{$home}{$user} = $usage; 
-        }
+        # capture du output with backtick
+        $du{$user}  = (split ' ', `du -sBG $homedir`)[0]
     }
 
     return %du; 
@@ -120,25 +114,25 @@ sub get_disk_usage {
 
 # print users' disk usage 
 # args: 
-#   - hash of disk usage (home => { user => usage })
+#   - hash ref du {user => usage}
 #   - disk usage cut-off 
 # return: 
 #   - null
 sub print_disk_usage { 
-    my ($r2hdd, $capacity, $cutoff) = @_; 
+    my ($r2du, $capacity, $cutoff) = @_; 
 
     # list of users in $home 
-    my @users = sort keys %$r2hdd;
+    my @users = sort keys %$r2du; 
 
     # strip the 'G' suffix, and slice the hash ref
-    @{$r2hdd}{@users} = map { $1 if $r2hdd->{$_} =~ /(\d+)G/ } @users; 
+    @{$r2du}{@users} = map { $1 if $r2du->{$_} =~ /(\d+)G/ } @users; 
 
     # total disk usage 
-    my $total   = sum(@{$r2hdd}{@users}); 
+    my $total   = sum(@{$r2du}{@users}); 
 
     # string & digit format for table 
     my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
-    my $dlength = (sort {$b <=> $a} map length($_), @{$r2hdd}{@users})[0]; 
+    my $dlength = (sort {$b <=> $a} map length($_), @{$r2du}{@users})[0]; 
     
     # summation of total usage 
     # this is used to draw dynamic dash line 
@@ -148,10 +142,10 @@ sub print_disk_usage {
     print "-" x length($summary); print "\n"; 
 
     # table description: user -> usage -> % usage [*]
-    for my $user ( sort { $r2hdd->{$b} <=> $r2hdd->{$a} } keys %$r2hdd ) { 
-        printf "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $r2hdd->{$user}, 100*$r2hdd->{$user}/$capacity; 
+    for my $user ( sort { $r2du->{$b} <=> $r2du->{$a} } keys %$r2du ) { 
+        printf "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $r2du->{$user}, 100*$r2du->{$user}/$capacity; 
         # print a [*] if a user uses more than cut-off 
-        $r2hdd->{$user} >= $cutoff ? print " [*]\n" : print "\n"; 
+        $r2du->{$user} >= $cutoff ? print " [*]\n" : print "\n"; 
     }
 
     # print -----

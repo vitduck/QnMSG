@@ -46,7 +46,7 @@ if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 # require root 
 die "Require root previlege to preceed\n" unless $< == 0; 
 
-# threadhold (GB)
+# maximum usable storage (GB)
 my $cutoff = 1000; 
 
 # hash of passwd: (home => { user => homedir })
@@ -55,12 +55,16 @@ my %passwd = get_user();
 # hash of df: (partition => size)
 my %df = get_partition(); 
 
-# hash of du: (home => { user => usage })
-print "\nSummarizing disk usage ...\n"; 
-my %du = get_disk_usage(%passwd); 
-
 # print disk usage from all home partition 
-for my $home ( sort keys %du ) { 
+for my $home ( sort keys %passwd ) { 
+    # refence to hash { user => usage } 
+    my $r2user = $passwd{$home};  
+    
+    # hash of disk usage 
+    print "\nSummarizing disk usage ...\n"; 
+    my %du = get_disk_usage($r2user); 
+
+    # table header
     print "\n$home: $df{$home} GB\n"; 
-    print_disk_usage($du{$home}, $df{$home}, $cutoff); 
+    print_disk_usage(\%du, $df{$home}, $cutoff); 
 }
