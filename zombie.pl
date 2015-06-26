@@ -2,10 +2,13 @@
 
 use strict; 
 use warnings; 
+
 use File::Basename;
 use Getopt::Long; 
 use Pod::Usage; 
-use POSIX qw(strftime);
+use POSIX qw( strftime );
+
+use QnMSG qw( print_status zombie_sweep ); 
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -87,69 +90,4 @@ if ( @nodes ) {
     }
     close $umbrella; 
     print "Another episode of Walking Dead: $output\n"; 
-}
-
-# status line 
-sub print_status { 
-    my ($count, $node_id, $node_status) = @_; 
-    
-    # mark down node and return immediately 
-    if ( $node_status =~ /down\*/ ) { 
-        printf "->%5s ", "down"; 
-        return 1;  
-    } else { 
-        # 8 nodes per line 
-        $count % 8 == 0 ? printf "->%5s\n", $node_id : printf "->%5s ", $node_id; 
-    }
-
-    return 0;  
-}
-
-# rsh and parse the output of ps for user processes 
-sub zombie_sweep { 
-    my ($node_id, $node_status, $umbrella) = @_; 
-
-    # exit with encounter with down* node
-    if ( $node_status =~ /down\*/ ) { return 1 }
-
-    # if $umbrella is not defined, direct output to *STDOUT (glob)
-    my $output = $umbrella || *STDOUT; 
-    
-    # remote connect to capture output of ps
-    open my $ps, "-|", "rsh $node_id ps --no-header axo uid,user,start,time,args"; 
-    print $output "=|$node_id|=\n"; 
-
-    # filter out the user processes 
-    my @procs = grep $_->[4] ne 'ps', grep $_->[0] > 500, map [split], <$ps>; 
-
-    unless ( @procs ) { print $output "...\n" }
-
-    # in brightest day, and darkest night 
-    # no zombie will escape my sight 
-    for my $proc ( @procs ) { 
-        # parse file full path for filename only
-        @$proc = map { (fileparse($_))[0] } @$proc; 
-        if ( grep { $_ eq 'ps' } @$proc ) { next }
-
-        # the position of pmi_proxy process in the output field 
-        my ($pmi) = grep { $proc->[$_] =~ /pmi_proxy/ } 0..$#$proc; 
-        
-        if ( $pmi ) { 
-            # from master to slave 
-            if ( $proc->[4] eq 'rsh' ) {
-                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
-            # from slave to master 
-            } else { 
-                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
-            }
-        } else { 
-            print $output  "@$proc[1..$#$proc]\n"; 
-        }
-    }
-    print $output "\n"; 
-
-    # close pipe 
-    close $ps; 
-    
-    return 0;  
 }
