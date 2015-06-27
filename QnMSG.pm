@@ -10,7 +10,7 @@ use List::Util qw(sum);
 # symbol 
 our @user   = qw( get_user ); 
 our @hdd    = qw( get_partition get_disk_usage print_disk_usage ); 
-our @zombie = qw( zombie_sweep ); 
+our @zombie = qw( zombie_scan ); 
 our @status = qw( print_status ); 
 
 # default import (all) 
@@ -85,25 +85,19 @@ sub get_disk_usage {
     my %du; 
     
     # list users in $home partition
-    my @users = sort keys %$passwd; 
+    my @users = grep -d $passwd->{$_}, sort keys %$passwd; 
 
     # status line format 
-    my $count   = 0; 
     my $column  = 4; 
     my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
 
     # loop through all ids and collect disk usage 
-    for my $user ( @users ) { 
+    for ( 0..$#users ) { 
+        my $user    = $users[$_]; 
         my $homedir = $passwd->{$user}; 
-
-        # skip system users 
-        next unless -d $homedir; 
-
+        
         # print status line 
-        print_status(++$count, $column, $user, $slength); 
-
-        # line break for last user
-        if ( $user eq $users[-1] && $count % $column != 0 ) { print "\n" };
+        print_status($_, $column, \@users, $slength); 
 
         # capture du output with backtick
         $du{$user}  = (split ' ', `du -sBG $homedir`)[0]
@@ -166,7 +160,7 @@ sub print_disk_usage {
 #   - node_id (x0??)
 #   - node_status (down* ?)
 #   - filehandler
-sub zombie_sweep { 
+sub zombie_scan { 
     my ($node_id, $node_status, $fh) = @_; 
 
     # exit with encounter with down* node
@@ -221,23 +215,23 @@ sub zombie_sweep {
 # print status line during scan
 # args: 
 #   - current node count 
-#   - node_id (x0??|user)
-#   - node_status (down* ?)
+#   - number of object per row
+#   - ref to list of object
+#   - ref to hash of object's status (optional)
 # return: 
 #   - null
 sub print_status { 
-    my ($count, $column, $process, $slength) = @_; 
+    my ($count, $column, $r2queue, $slength, $r2status) = @_; 
 
-    # addition status (down* or null)
-    my $status = shift @_ || ''; 
-    
+    # test if a ref to hash of status is to subroutine
     # mark down node and return immediately 
-    if ( $status =~ /down\*/ ) { 
-        printf "->% ${slength}s ", "down"; 
+    if ( ref $r2status eq ref {} and $r2status->{$r2queue->[$count]} =~ /down\*/ ) { 
+        printf "-> % ${slength}s ", "down"; 
         return 1;  
     } else { 
-        # generic counting status
-        $count % $column == 0 ? printf "-> %${slength}s\n", $process : printf "-> %${slength}s ", $process; 
+        # list starts at 0, thus line break at $column - 1
+        $count % $column == $column - 1 ? printf "-> %${slength}s\n", $r2queue->[$count] 
+        : printf "-> %${slength}s ", $r2queue->[$count]; 
     }
 
     return 0;  

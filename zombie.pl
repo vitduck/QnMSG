@@ -8,7 +8,7 @@ use Getopt::Long;
 use Pod::Usage; 
 use POSIX qw( strftime );
 
-use QnMSG qw( print_status zombie_sweep ); 
+use QnMSG qw( print_status zombie_scan ); 
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -74,7 +74,7 @@ if ( @nodes ) {
     for my $node ( @nodes ) { 
         # skip non-existing node 
         unless ( $pestat{$node} ) { next }
-        zombie_sweep($node, $pestat{$node}); 
+        zombie_scan($node, $pestat{$node}); 
     }
 } else { 
     print "Scanning for zombie ...\n"; 
@@ -84,19 +84,17 @@ if ( @nodes ) {
     my @nodes   = sort keys %pestat; 
 
     # string format 
-    my $count   = 0; 
     my $column  = 4; 
     my $slength = (sort {$b <=> $a} map length($_), @nodes)[0]; 
 
-    for my $node ( @nodes ) { 
+    for ( 0..$#nodes ) { 
         # print status line and # skip down* node 
-        if ( print_status(++$count, $column, $node, $slength, $pestat{$node}) ) { next } 
+        if ( print_status($_, $column, \@nodes, $slength, \%pestat) ) { next } 
 
-        # line break for last node 
-        if ( $node eq $nodes[-1] && $count % $column != 0 ) { print "\n" }; 
-
-        zombie_sweep($node, $pestat{$node}, $fh); 
+        # scan for zombie 
+        zombie_scan($nodes[$_], $pestat{$nodes[$_]}, $fh); 
     }
     close $fh; 
+    
     print "Another episode of Walking Dead: $output\n"; 
 }
