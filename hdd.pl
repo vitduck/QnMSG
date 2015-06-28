@@ -19,7 +19,7 @@ hdd.pl: disk usages of users
 
 =head1 SYNOPSIS
 
-hdd.pl [-h] [-d /home /home2]
+hdd.pl [-h] [-d /home /home2] [-q 500 ]
 
 =head1 OPTIONS
 
@@ -33,18 +33,24 @@ Print the help message and exit
 
 List of partitions (default: all)
 
+=item B<-q>
+
+Allowed disk quota in GB (default: 1000)
+
 =back
 
 =cut 
 
 # default optional arguments 
 my $help       = 0; 
+my $quota      = 1000; 
 my @partitions = ();  
 
 # parse optional arguments 
 GetOptions( 
     'h'       => \$help, 
     'd=s{1,}' => \@partitions, 
+    'q=i'     => \$quota,
 ) or pod2usage(-verbose => 1); 
 
 # help message 
@@ -52,9 +58,6 @@ if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 
 # require root 
 die "Require root previlege to preceed\n" unless $< == 0; 
-
-# maximum usable storage (GB)
-my $cutoff = 1000; 
 
 # hash of passwd: (home => { user => homedir })
 my %passwd = get_user(); 
@@ -87,5 +90,5 @@ for my $home ( @partitions ) {
 
     # table header
     print "\n$home: $df{$home} GB\n"; 
-    print_disk_usage(\%du, $df{$home}, $cutoff); 
+    print_disk_usage(\%du, $df{$home}, $quota); 
 }
