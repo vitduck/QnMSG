@@ -113,7 +113,7 @@ sub get_disk_usage {
 # return: 
 #   - null
 sub print_disk_usage { 
-    my ($r2du, $capacity, $cutoff) = @_; 
+    my ($r2du, $capacity, $quota) = @_; 
 
     # list of users in $home 
     my @users = sort keys %$r2du; 
@@ -139,7 +139,7 @@ sub print_disk_usage {
     for my $user ( sort { $r2du->{$b} <=> $r2du->{$a} } keys %$r2du ) { 
         printf "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $r2du->{$user}, 100*$r2du->{$user}/$capacity; 
         # print a [*] if a user uses more than cut-off 
-        $r2du->{$user} >= $cutoff ? print " [*]\n" : print "\n"; 
+        $r2du->{$user} >= $quota ? print " [*]\n" : print "\n"; 
     }
 
     # print -----
@@ -226,15 +226,20 @@ sub print_status {
     # test if a ref to hash of status is to subroutine
     # mark down node and return immediately 
     if ( ref $r2status eq ref {} and $r2status->{$r2queue->[$count]} =~ /down\*/ ) { 
-        printf "-> % ${slength}s ", "down"; 
+        printf "-> %${slength}s ", "down"; 
         return 1;  
-    } else { 
-        # list starts at 0, thus line break at $column - 1
-        $count % $column == $column - 1 ? printf "-> %${slength}s\n", $r2queue->[$count] 
-        : printf "-> %${slength}s ", $r2queue->[$count]; 
     }
 
-    return 0;  
+    # generic status line 
+    printf "-> %-${slength}s ", $r2queue->[$count];  
+
+    # final element: print \newline and exit
+    if ( $count == $#$r2queue ) { print "\n"; return 0 }  
+    
+    # list starts at 0, thus line break at $column - 1
+    if ( $count % $column == $column - 1 ) { print "\n"; return 0 }
+
+    return 0; 
 }
 
 1; 
