@@ -89,7 +89,7 @@ if ( @nodes ) {
 
     for ( 0..$#nodes ) { 
         # print status line and # skip down* node 
-        if ( print_status($_, $column, \@nodes, $slength, \%pestat) ) { next } 
+        print_status($_, $column, \@nodes, $slength, \%pestat); 
 
         # scan for zombie 
         zombie_scan($nodes[$_], $pestat{$nodes[$_]}, $fh); 

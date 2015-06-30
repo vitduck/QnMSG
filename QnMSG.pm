@@ -224,14 +224,18 @@ sub print_status {
     my ($count, $column, $r2queue, $slength, $r2status) = @_; 
 
     # test if a ref to hash of status is to subroutine
-    # mark down node and return immediately 
-    if ( ref $r2status eq ref {} and $r2status->{$r2queue->[$count]} =~ /down\*/ ) { 
-        printf "-> %${slength}s ", "down"; 
-        return 1;  
-    }
-
+    if ( ref $r2status eq ref {} ) {  
+        # down* node 
+        if (  $r2status->{$r2queue->[$count]} =~ /down\*/ ) { 
+            printf "-> %${slength}s ", "down"; 
+        # free node 
+        } else { 
+            printf "-> %-${slength}s ", $r2queue->[$count];  
+        }
     # generic status line 
-    printf "-> %-${slength}s ", $r2queue->[$count];  
+    } else { 
+        printf "-> %-${slength}s ", $r2queue->[$count];  
+    }
 
     # final element: print \newline and exit
     if ( $count == $#$r2queue ) { print "\n"; return 0 }  
