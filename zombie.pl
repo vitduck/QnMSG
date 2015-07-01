@@ -3,12 +3,13 @@
 use strict; 
 use warnings; 
 
+use IO::File;
 use File::Basename;
 use Getopt::Long; 
 use Pod::Usage; 
 use POSIX qw( strftime );
 
-use QnMSG qw( print_status zombie_scan ); 
+use QnMSG qw( get_pestat scan_zombie print_status get_host send_mail ); 
 
 my @usages = qw(NAME SYSNOPSIS OPTIONS); 
 
@@ -19,7 +20,7 @@ zombie.pl: walking dead
 
 =head1 SYNOPSIS
 
-zombie.pl [-h] [-n x031 x053 ... ]
+zombie.pl [-h] [-n x031 x053 ... ] [-m jangsik.lee@kaist.ac.kr]
 
 =head1 OPTIONS
 
@@ -33,6 +34,10 @@ Print the help message and exit
 
 List of the nodes to be scanned
 
+=item B<-m>
+
+List of the e-mail recipients
+
 =back
 
 =cut 
@@ -41,6 +46,7 @@ List of the nodes to be scanned
 my $help   = 0; 
 my $scan   = 0; 
 my @nodes  = (); 
+my @mails  = (); 
 
 # output 
 my $date   = strftime "%Y-%m-%d", localtime;
@@ -51,22 +57,14 @@ GetOptions(
     'h'       => \$help, 
     's'       => \$scan,
     'n=s{1,}' => \@nodes, 
+    'm=s{1,}' => \@mails,
 ) or pod2usage(-verbose => 1); 
 
 # help message 
 if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 
 # pipe to pestat 
-my %pestat; 
-open my $pestat, '-|', 'pestat'; 
-while ( <$pestat> ) { 
-    # skip the header 
-    if ( /node\s+state/ ) { next }
-    # %node: ( id => status )
-    my ($node_id, $node_status) = (split)[0,1]; 
-    $pestat{$node_id} = $node_status; 
-}
-close $pestat; 
+my %pestat = get_pestat(); 
 
 # In brightest day, in blackest night,
 # No zombies shall esacpe my sight.  
@@ -74,27 +72,33 @@ if ( @nodes ) {
     for my $node ( @nodes ) { 
         # skip non-existing node 
         unless ( $pestat{$node} ) { next }
-        zombie_scan($node, $pestat{$node}); 
+        scan_zombie($node, $pestat{$node}, *STDOUT); 
     }
 } else { 
-    print "Scanning for zombie ...\n"; 
-    open my $fh, '>', $output or die "Cannot open $output\n"; 
+    # file handler branching; 
+    my $fh = @mails ? send_mail(\@mails, $output, get_host()) : IO::File->new($output,'w'); 
 
     # sorted node list x001 ... x064
-    my @nodes   = sort keys %pestat; 
+    my @nodes = sort keys %pestat; 
 
     # string format 
     my $column  = 4; 
     my $slength = (sort {$b <=> $a} map length($_), @nodes)[0]; 
 
+    print "\nScanning for zombie ...\n"; 
     for ( 0..$#nodes ) { 
         # print status line and # skip down* node 
         print_status($_, $column, \@nodes, $slength, \%pestat); 
 
         # scan for zombie 
-        zombie_scan($nodes[$_], $pestat{$nodes[$_]}, $fh); 
+        scan_zombie($nodes[$_], $pestat{$nodes[$_]}, $fh); 
+
+        # line break 
+        unless ( $_ == $#nodes ) { print $fh "\n" }
     }
-    close $fh; 
     
     print "Another episode of Walking Dead: $output\n"; 
+
+    # close fh
+    $fh->close; 
 }

@@ -3,30 +3,29 @@ package QnMSG;
 use strict; 
 use warnings; 
 
+use IO::File; 
+use IO::Pipe; 
 use Exporter qw(import); 
 use File::Basename; 
 use List::Util qw(sum); 
 
 # symbol 
-our @user   = qw( get_user ); 
-our @hdd    = qw( get_partition get_disk_usage print_disk_usage ); 
-our @zombie = qw( zombie_scan ); 
-our @status = qw( print_status ); 
+our @system = qw( get_user get_host get_pestat get_partition ); 
+our @task   = qw( get_disk_usage scan_zombie ); 
+our @output = qw( print_status print_disk_usage send_mail ); 
 
 # default import (all) 
-our @EXPORT = ( @user, @hdd, @zombie, @status ); 
-
+our @EXPORT = ( @system, @output, @task ); 
 # tag import 
 our %EXPORT_TAGS = ( 
-    user   => \@user,  
-    hdd    => \@hdd, 
-    zombie => \@zombie, 
-    status => \@status, 
+    system => \@system,
+    output => \@output,
+    task   => \@task,
 ); 
 
-########
-# USER #
-########
+##########
+# SYSTEM #
+##########
 
 # get hash of user 
 # arg : 
@@ -36,22 +35,69 @@ our %EXPORT_TAGS = (
 sub get_user { 
     my %passwd; 
 
-    open my $passwd, '<', '/etc/passwd' or die "Cannot open /etc/passwd\n"; 
+    my $passwd = IO::File->new('/etc/passwd', 'r') 
+        or die "Cannot open /etc/passwd\n"; 
+
     while ( <$passwd> ) { 
+        chomp; 
         if ( /\/home2?\// ) { 
             my ($user, $homedir) = (split ':')[0,5]; 
             my $home = dirname($homedir); 
             $passwd{$home}{$user} = $homedir; 
         }
     }
-    close $passwd; 
+    $passwd->close; 
     
     return %passwd; 
 }
 
-#######
-# HDD #
-#######
+# get local host from /etc/mail/local-host-names 
+# args: 
+#   - none 
+# return: 
+#   - hostname 
+sub get_host { 
+    my @hosts; 
+
+    my $hostname = IO::File->new('/etc/mail/local-host-names', 'r') 
+        or die "Cannot open /etc/mail/local-host-names\n"; 
+
+    while ( <$hostname> ) { 
+        chomp; 
+        # skip the comment
+        next if /^\s*#/; 
+        push @hosts, $_; 
+    }
+    $hostname->close; 
+    
+    # get the first host
+    return $hosts[0]; 
+}
+
+# get node status of nodes 
+# args: 
+#   - none 
+# return: 
+#   - hash ( node => status )
+sub get_pestat { 
+    my %pestat; 
+
+    # pipe to pestat 
+    my $pestat = IO::Pipe->new; 
+    $pestat->reader('pestat') or die "Cannot pipe to pestat\n"; 
+
+    while ( <$pestat> ) { 
+        chomp; 
+        # skip the header 
+        if ( /node\s+state/ ) { next }
+        # %node: ( id => status )
+        my ($node_id, $node_status) = (split)[0,1]; 
+        $pestat{$node_id} = $node_status; 
+    }
+    $pestat->close; 
+
+    return %pestat; 
+}
 
 # get partition
 # arg: 
@@ -59,10 +105,13 @@ sub get_user {
 # return: 
 #   - hash ( partition => size )
 sub get_partition { 
+
     # pipe to df 
-    open DF, '-|', 'df -B G' or die "Cannot open pipe to df\n"; 
-    my @output = <DF>; 
-    close DF; 
+    my $df = IO::Pipe->new;  
+    $df->reader('df -B G') or die "Cannot open pipe to df\n"; 
+
+    my @output = <$df>; 
+    $df->close; 
     
     # remove output header 
     shift @output; 
@@ -74,6 +123,10 @@ sub get_partition {
 
     return %df;  
 }
+
+########
+# TASK #
+########
 
 # get users' disk usage 
 # arg: 
@@ -106,77 +159,29 @@ sub get_disk_usage {
     return %du; 
 }
 
-# print users' disk usage 
-# args: 
-#   - hash ref du {user => usage}
-#   - disk usage cut-off 
-# return: 
-#   - null
-sub print_disk_usage { 
-    my ($r2du, $capacity, $quota) = @_; 
-
-    # list of users in $home 
-    my @users = sort keys %$r2du; 
-
-    # strip the 'G' suffix, and slice the hash ref
-    @{$r2du}{@users} = map { $1 if $r2du->{$_} =~ /(\d+)G/ } @users; 
-
-    # total disk usage 
-    my $total   = sum(@{$r2du}{@users}); 
-
-    # string & digit format for table 
-    my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
-    my $dlength = (sort {$b <=> $a} map length($_), @{$r2du}{@users})[0]; 
-    
-    # summation of total usage 
-    # this is used to draw dynamic dash line 
-    my $summary = sprintf "%${slength}s  %${dlength}d GB  %6.2f %%", 'total', $total, 100*$total/$capacity; 
-
-    # print -----
-    print "-" x length($summary); print "\n"; 
-
-    # table description: user -> usage -> % usage [*]
-    for my $user ( sort { $r2du->{$b} <=> $r2du->{$a} } keys %$r2du ) { 
-        printf "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $r2du->{$user}, 100*$r2du->{$user}/$capacity; 
-        # print a [*] if a user uses more than cut-off 
-        $r2du->{$user} >= $quota ? print " [*]\n" : print "\n"; 
-    }
-
-    # print -----
-    print "-" x length($summary); 
-    
-    # print summary (total usaga % usage)
-    print "\n$summary\n"; 
-
-    return 0; 
-}
-
-##########
-# ZOMBIE #
-##########
-
 # rsh and parse the output of ps for user processes 
 # args: 
 #   - node_id (x0??)
 #   - node_status (down* ?)
 #   - filehandler
-sub zombie_scan { 
+sub scan_zombie { 
     my ($node_id, $node_status, $fh) = @_; 
 
     # exit with encounter with down* node
     if ( $node_status =~ /down\*/ ) { return 1 }
 
     # if $fh is not defined, direct output to *STDOUT (type glob)
-    my $output = $fh || *STDOUT; 
+    #my $output = $fh || *STDOUT; 
     
     # remote connect to capture output of ps
-    open my $ps, "-|", "rsh $node_id ps --no-header axo uid,user,start,time,args"; 
-    print $output "=|$node_id|=\n"; 
+    my $ps = IO::Pipe->new; 
+    $ps->reader("rsh $node_id ps --no-header axo uid,user,start,time,args"); 
+    print $fh "=|$node_id|=\n"; 
 
     # filter out the user processes 
     my @procs = grep $_->[4] ne 'ps', grep $_->[0] > 500, map [split], <$ps>; 
 
-    unless ( @procs ) { print $output "...\n" }
+    unless ( @procs ) { print $fh "...\n" }
 
     # in brightest day, and darkest night 
     # no zombie will escape my sight 
@@ -191,25 +196,26 @@ sub zombie_scan {
         if ( $pmi ) { 
             # from master to slave 
             if ( $proc->[4] eq 'rsh' ) {
-                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
+                print $fh "@$proc[1..$pmi+2,-2,-1]\n";  
             # from slave to master 
             } else { 
-                print $output "@$proc[1..$pmi+2,-2,-1]\n";  
+                print $fh "@$proc[1..$pmi+2,-2,-1]\n";  
             }
         } else { 
-            print $output  "@$proc[1..$#$proc]\n"; 
+            print $fh "@$proc[1..$#$proc]\n"; 
         }
     }
-    print $output "\n"; 
 
     # close pipe 
-    close $ps; 
+    $ps->close; 
     
     return 0;  
 }
 
+
+
 ##########
-# STATUS #
+# OUTPUT #
 ##########
 
 # print status line during scan
@@ -242,6 +248,74 @@ sub print_status {
     
     # list starts at 0, thus line break at $column - 1
     if ( $count % $column == $column - 1 ) { print "\n"; return 0 }
+
+    return 0; 
+}
+
+# send mail 
+# args: 
+#   - ref to list of recipients
+#   - title of email 
+#   - hostname (kohn/sham/bloch)
+# return
+#   - scalar filehandler
+sub send_mail { 
+    my ($r2recipient, $title, $host) = @_; 
+
+    my $sender    = $ENV{USER}; 
+    my $recipient = join ',', @$r2recipient; 
+    
+    # file handler
+    # \n must be removed from $host with chomp 
+    # otherwise mail will complain about invalid \012 char
+    my $mailfh = IO::Pipe->new; 
+    $mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
+
+    return $mailfh; 
+}
+
+# print users' disk usage 
+# args: 
+#   - hash ref du {user => usage}
+#   - disk usage cut-off 
+# return: 
+#   - null
+sub print_disk_usage { 
+    my ($r2du, $capacity, $quota, $fh) = @_; 
+
+    # list of users in $home 
+    my @users = sort keys %$r2du; 
+
+    # strip the 'G' suffix, and slice the hash ref
+    @{$r2du}{@users} = map { $1 if $r2du->{$_} =~ /(\d+)G/ } @users; 
+
+    # total disk usage 
+    my $total   = sum(@{$r2du}{@users}); 
+
+    # string & digit format for table 
+    my $slength = (sort {$b <=> $a} map length($_), @users)[0]; 
+    my $dlength = (sort {$b <=> $a} map length($_), @{$r2du}{@users})[0]; 
+    
+    # summation of total usage 
+    # this is used to draw dynamic dash line 
+    my $summary = sprintf "%${slength}s  %${dlength}d GB  %6.2f %%", 'total', $total, 100*$total/$capacity; 
+    
+    # print -----
+    print $fh "-" x length($summary); 
+    print $fh "\n"; 
+
+    # table description: user -> usage -> % usage [*]
+    for my $user ( sort { $r2du->{$b} <=> $r2du->{$a} } keys %$r2du ) { 
+        printf $fh "%${slength}s  %${dlength}d GB  %6.2f %%", $user, $r2du->{$user}, 100*$r2du->{$user}/$capacity; 
+        # print a [*] if a user uses more than cut-off 
+        $r2du->{$user} >= $quota ? print $fh " [*]\n" : print $fh "\n"; 
+    }
+
+    # print -----
+    print $fh "-" x length($summary); 
+    
+    # print summary (total usaga % usage)
+    print $fh "\n$summary\n"; 
 
     return 0; 
 }
