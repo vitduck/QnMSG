@@ -167,21 +167,22 @@ sub get_disk_usage {
 sub scan_zombie { 
     my ($node_id, $node_status, $fh) = @_; 
 
-    # exit with encounter with down* node
-    if ( $node_status =~ /down\*/ ) { return 1 }
-
-    # if $fh is not defined, direct output to *STDOUT (type glob)
-    #my $output = $fh || *STDOUT; 
+    print $fh "=|$node_id|=\n"; 
     
+    # exit with encounter with down* node
+    if ( $node_status =~ /down\*/ ) { 
+        print $fh "down\n"; 
+        return 1; 
+    }
+
     # remote connect to capture output of ps
     my $ps = IO::Pipe->new; 
     $ps->reader("rsh $node_id ps --no-header axo uid,user,start,time,args"); 
-    print $fh "=|$node_id|=\n"; 
 
     # filter out the user processes 
     my @procs = grep $_->[4] ne 'ps', grep $_->[0] > 500, map [split], <$ps>; 
 
-    unless ( @procs ) { print $fh "...\n" }
+    unless ( @procs ) { print $fh "free\n" }
 
     # in brightest day, and darkest night 
     # no zombie will escape my sight 
@@ -211,8 +212,6 @@ sub scan_zombie {
     
     return 0;  
 }
-
-
 
 ##########
 # OUTPUT #
@@ -269,7 +268,14 @@ sub send_mail {
     # \n must be removed from $host with chomp 
     # otherwise mail will complain about invalid \012 char
     my $mailfh = IO::Pipe->new; 
-    $mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
+
+    if ( $host =~ /kohn/ ) { 
+        # centos 5.x on kohn
+        $mailfh->writer("mail -s '$title' '$recipient' -- -f '$sender\@$host'"); 
+    } else {
+        # centos 6.x on sham/bloch
+        $mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
+    }
 
     return $mailfh; 
 }
