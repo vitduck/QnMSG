@@ -97,7 +97,7 @@ if ( @nodes ) {
         unless ( $_ == $#nodes ) { print $fh "\n" }
     }
     
-    print "Another episode of Walking Dead: $output\n"; 
+    print "Walking Dead: $output\n"; 
 
     # close fh
     $fh->close; 
