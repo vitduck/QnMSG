@@ -91,7 +91,7 @@ for my $home ( @partitions ) {
     my $r2user = $passwd{$home};  
     
     # hash of disk usage 
-    print "\nSummarizing disk usage ...\n"; 
+    print "\nSummarizing $home disk usage ...\n"; 
     my %du = get_disk_usage($r2user); 
 
     my $fh = @mails ? send_mail(\@mails, "Disk usage: $home", get_host()) : *STDOUT; 
@@ -100,5 +100,6 @@ for my $home ( @partitions ) {
     print $fh "\n$home: $df{$home} GB\n"; 
     print_disk_usage(\%du, $df{$home}, $quota, $fh); 
 
-    $fh->close; 
+    # do not close STDOUT!
+    if ( @mails ) { $fh->close }
 }
