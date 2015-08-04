@@ -84,7 +84,7 @@ sub get_pestat {
 
     # pipe to pestat 
     my $pestat = IO::Pipe->new; 
-    $pestat->reader('pestat') or die "Cannot pipe to pestat\n"; 
+    $pestat->reader('pestat');  
 
     while ( <$pestat> ) { 
         chomp; 
@@ -108,7 +108,7 @@ sub get_partition {
 
     # pipe to df 
     my $df = IO::Pipe->new;  
-    $df->reader('df -B G') or die "Cannot open pipe to df\n"; 
+    $df->reader('df -B G'); 
 
     my @output = <$df>; 
     $df->close; 
