@@ -44,7 +44,6 @@ List of the e-mail recipients
 
 # default optional arguments 
 my $help   = 0; 
-my $scan   = 0; 
 my @nodes  = (); 
 my @mails  = (); 
 
@@ -55,7 +54,6 @@ my $output = "zombie-$date.dat";
 # parse optional arguments 
 GetOptions( 
     'h'       => \$help, 
-    's'       => \$scan,
     'n=s{1,}' => \@nodes, 
     'm=s{1,}' => \@mails,
 ) or pod2usage(-verbose => 1); 
