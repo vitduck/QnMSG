@@ -20,7 +20,7 @@ benchmark.pl: check the stability of myrinet/infiniband
 
 =head1 SYNOPSIS
 
-benchmark.pl -t template/medium -x {1..33} -p 8 -n 10
+benchmark.pl -t template/TiO2 -x {1..33} -l 8 -n 10
 
 =head1 OPTIONS
 
@@ -32,7 +32,7 @@ Print the help message and exit.
 
 =item B<-t> 
 
-Directory containing VASP input files (default: template/medium)
+Directory containing VASP input files
 
 =item B<-j> 
 
@@ -42,7 +42,7 @@ Prefix of job's name (default: 'q')
 
 List of nodes 
 
-=item B<-b> 
+=item B<-l> 
 
 Number of nodes per job (default: 4)
 
@@ -52,7 +52,7 @@ Number of cores per node (default: 8)
 
 =item B<-n> 
 
-Number of randomized tests (default: 10)
+Number of randomized tests (default: 4)
 
 =back
 
@@ -60,12 +60,12 @@ Number of randomized tests (default: 10)
 
 # default optional arguments
 my $help    = 0;  
-my $tempdir = 'template/medium';   
-my $job     = 'j'; 
+my $tempdir = '';   
+my $prefix  = 'test'; 
 my @xnodes  = (); 
 my $batch   = 4; 
 my $ppn     = 8; 
-my $ntest   = 10; 
+my $ntest   = 4; 
 
 # VASP input files 
 my @VASP = qw(INCAR KPOINTS POSCAR POTCAR VASP.pl); 
@@ -74,8 +74,8 @@ my @VASP = qw(INCAR KPOINTS POSCAR POTCAR VASP.pl);
 GetOptions(
     'h'       => \$help, 
     't=s'     => \$tempdir,  
-    'j=s'     => \$job, 
-    'batch=i' => \$batch,
+    'j=s'     => \$prefix, 
+    'l=i'     => \$batch,
     'x=i{1,}' => \@xnodes, 
     'p=i'     => \$ppn, 
     'n=i'     => \$ntest, 
@@ -85,7 +85,7 @@ GetOptions(
 if ( $help or @xnodes == 0 ) { pod2usage(-verbose => 99, -section => \@usages) }
 
 # sanity check 
-unless ( -d $tempdir ) { die "Template directory $tempdir does not exist\n" }
+unless ( defined $tempdir and -d $tempdir ) { die "Template directory $tempdir does not exist\n" }
 
 # node status
 my %pestat = get_pestat(); 
@@ -100,7 +100,8 @@ map  { $_->[0] }
 grep { exists $xnode{$_->[1]} } 
 map  { [$_, sprintf('%d',$1)] if /x(\d+)/ } 
 keys %pestat; 
- 
+
+# loop through test 
 my $format = length($ntest); 
 for my $test (1..$ntest) { 
     # shuffle and slice the array
@@ -116,7 +117,7 @@ for my $test (1..$ntest) {
         my $subdir  = 'x-' . join "_", map { sprintf("%d",$1) if /x(\d+)/ } @batch; 
         
         # name of job in PBS 
-        my $jobname = "$job-" . join "_", map { sprintf("%d",$1) if /x(\d+)/ } @batch ; 
+        my $jobname = "$prefix-" . join "_", map { sprintf("%d",$1) if /x(\d+)/ } @batch ; 
         print "=> $jobname\n"; 
         
         # list of node in PBS

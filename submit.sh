@@ -1,9 +1,10 @@
-#!/usr/bin/bash 
+#!/usr/bin/env bash 
 
 for i in test-*         # loop over test- dir
 do  
     cd $i               # cd into test- dir
-    for j in x-*;       # loop over x- dir
+    echo "=> $i"
+    for j in x-*        # loop over x- dir
     do 
         cd $j           # cd into test-/x- 
         qsub VASP.pl    # submit job 
