@@ -8,15 +8,20 @@ use IO::Pipe;
 use Exporter; 
 use File::Basename; 
 
-our @scan   = qw/disk_usage orphan_process/; 
+our @scan   = qw/disk_usage orphan_process kill_process/; 
 our @system = qw/authenticate read_release read_passwd read_host read_pestat read_partition send_mail/; 
 
 our @ISA         = qw/Exporter/; 
-our @EXPORT      = ( );  
+our @EXPORT      = ();  
 our @EXPORT_OK   = ( @system, @scan ); 
 our %EXPORT_TAGS = ( 
     system => \@system,
     scan   => \@scan,
+); 
+
+our %CID = ( 
+    Inspector => [ 'Ginoza Nobuchika', 'Tsunemori Akane' ], 
+    Enforcer  => [ 'Kougama Shinya', 'Masaoka Tomomi', 'Kagari Shuisei', 'Kunizuka Yayoi' ],  
 ); 
 
 #--------#
@@ -29,10 +34,16 @@ our %EXPORT_TAGS = (
 # return 
 # -> null 
 sub authenticate { 
-    my ( $user, $occupation ) = @_; 
     print "\n"; 
     if ( $< == 0 ) {  
-        print "> User authentication: $user ($occupation)\n"; 
+        # flatten array ref 
+        my @CID  = map @$_, values %CID;  
+
+        # pick a user 
+        my $user = $CID[int(rand(@CID))]; 
+
+        # interface to Sibyl
+        print "> User authentication: $user\n"; 
         print "> Affiliation: Public Safety Bureau, Criminal Investigation Deparment\n"; 
         print "> You are a valid user\n\n"; 
     } else { 
@@ -68,9 +79,15 @@ sub read_passwd {
     
     for ( read_file($file) ) { 
         if ( /\/home\d?\// ) { 
-            my ( $user, $homedir ) = ( split ':' )[0,5]; 
-            my $home = dirname($homedir); 
-            if ( -d $homedir ) { $passwd{$home}{$user} = $homedir } 
+            my ( $user, $uid, $homedir ) = ( split ':' )[0,2,5]; 
+            
+            # skip system user 
+            if ( $uid < 500 ) { next }
+            
+            # skip pseudo-user ? 
+            if ( ! -d $homedir ) { next } 
+        
+            $passwd{dirname($homedir)}{$user} = $homedir;  
         }
     }
     
@@ -97,7 +114,7 @@ sub read_host {
     return $hosts[0]; 
 }
 
-# get node status of nodes 
+# get node tatus of nodes 
 # args
 # -< null
 # return 
@@ -130,6 +147,7 @@ sub read_partition {
     # remove df's output header 
     shift @lines;  
     
+    my ( $user ) = @_; 
     # construct hash 
     my %partition = map { ( split )[-1,1] } @lines; 
 
@@ -210,11 +228,14 @@ sub disk_usage {
 # return 
 # -> hash of process 
 sub orphan_process { 
-    my ( $pestat ) = @_; 
+    my ( $pestat, $passwd ) = @_; 
    
     # status 
     my @status = construct_status_bar($pestat, 'down');  
     my $status_length = ( sort { $b <=> $a } map length($_), @status )[0]; 
+    
+    # user list
+    my @users  = map keys %$_, values %$passwd; 
 
     my $count = 0; 
     my $ncol  = 4;
@@ -225,19 +246,41 @@ sub orphan_process {
         print_status_bar(\@status, $count, $ncol, $status_length); 
        
         # read process
-        my @procs = read_ps($node, $pestat->{$node});  
-
-        if ( ref($procs[0]) eq 'ARRAY' ) { 
-            push @{$orphan{$node}}, \@procs; 
-        } else { 
-            $orphan{$node} = $procs[0]; 
-        } 
+        my @procs = read_ps($node, $pestat->{$node}, \@users);  
+       
+        # free|down|excl nodes
+        $orphan{$node} = ref($procs[0]) eq 'ARRAY' ? \@procs : $procs[0]; 
         
         # status update 
         $count++; 
     }
 
     return %orphan; 
+}
+
+# kill process remotely 
+# args 
+# -< PID 
+# -< ref of PID array 
+# return 
+# -> null 
+sub kill_process { 
+    my ( $pid, $proc ) = @_; 
+    
+    my $host = read_host(); 
+    my $ssh  = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
+
+    # stupid ps output
+    my ( $target ) =  grep { $pid =~/$_->[3]|$_->[4]/ } @$proc;  
+
+    if ( $target ) { 
+
+        print "\nEnforcement mode: Lethal Eliminator\n";  
+    } else { 
+        die "Invalid taget for enforcement\n"; 
+    } 
+
+    return; 
 }
 
 #-----------# 
@@ -329,25 +372,26 @@ sub print_status_bar {
 # args 
 # -< node 
 # -< status
+# -< ref of array of user
 # return 
 # -> array of process
 sub read_ps { 
-    my ( $node, $status ) = @_; 
-
+    my ( $node, $status, $passwd ) = @_; 
+    
     my @procs = ( ); 
-
+    
     # return 1 for down* node
     if ( $status =~ /down\*/ ) { return 1 } 
 
     # remote connect to capture output of ps
-    my @ps = read_pipe("rsh $node ps --no-header axo uid,user,start,time,pid,args"); 
-    
+    my @ps = read_pipe("rsh $node ps --no-header aux"); 
+
     # filter out the user processes ( UID > 500 ) 
     for ( @ps ) { 
-        my ( $uid, $user, $start, $time, $pid, @args ) = split;      
+        my ( $user, $pid, undef, undef, undef, undef, undef, $status, $start, $time, @args ) = split;      
 
-        # user process ( UID > 500 )
-        if ( $uid <= 500 ) { next }
+        # user process
+        if ( ! grep $_ eq $user, @$passwd ) { next }
         
         # skip ps process 
         if ( grep $_ eq 'ps', @args ) { next }
@@ -358,13 +402,18 @@ sub read_ps {
         # position of pmi_proxy process in the output field 
         my ( $pmi ) = grep { $args[$_] =~ /pmi_proxy/ } 0..$#args;  
 
-        if ( ! defined $pmi ) { 
-            push @procs, [ $user, $start, $time, $pid, @args ];  
+        # defunct pmi ? (rare cases)
+        my ( $defunct ) = grep { $args[$_] =~ /defunct/ } 0..$#args; 
+
+        # older MPI communcation usind mpd.py 
+        # and zombie pmi_proxy 
+        if ( ! defined $pmi || $defunct ) { 
+            push @procs, [ $user, $pid, $start, $time, $status, @args ];  
         } else { 
-            push @procs, [ $user, $start, $time, $pid, @args[0..$pmi+2,-2,-1] ];  
+            push @procs, [ $user, $pid, $start, $time, $status, @args[0..$pmi+2,-2,-1] ];  
         }
     }
-   
+
     # return 0 for free nodes 
     return ( @procs ? @procs : 0 );  
 }

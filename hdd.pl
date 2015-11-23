@@ -111,5 +111,5 @@ for my $home ( @partitions ) {
     printf "%s\n", "-" x length($summary); 
 
     # total 
-    print "$summary\n"; 
+    print "$summary\n\n"; 
 }

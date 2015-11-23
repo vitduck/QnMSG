@@ -10,7 +10,7 @@ use Getopt::Long;
 use Pod::Usage; 
 use POSIX qw/strftime/;
 
-use Sibyl qw/read_pestat orphan_process send_mail/; 
+use Sibyl qw/authenticate read_passwd read_pestat orphan_process send_mail/; 
 
 my @usages = qw/NAME SYSNOPSIS OPTIONS/;  
 
@@ -21,7 +21,7 @@ dominator.pl: The Eye of the Sibyl
 
 =head1 SYNOPSIS
 
-dominator.pl [-h] [-n x031 x053 ... ] [-m tsunemori.akane@kaist.ac.kr]
+dominator.pl [-h] [-n x031 x053 ... ] [-m sibyl@kaist.ac.kr]
 
 =head1 OPTIONS
 
@@ -35,6 +35,10 @@ Print the help message and exit
 
 List of the nodes to be scanned
 
+=item B<-k> 
+
+Remotely kill process 
+
 =item B<-m>
 
 E-mail of recipient
@@ -45,7 +49,8 @@ E-mail of recipient
 
 # default optional arguments 
 my $help   = 0; 
-my @nodes  = ( ); 
+my @nodes  = (); 
+my $pid    = 0; 
 my $mail   = ''; 
 
 # var
@@ -66,21 +71,25 @@ if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 # nodes status 
 my %pestat = read_pestat();  
 
+# user 
+my %passwd = read_passwd();  
+
 # branching filehandler
 if ( @nodes == 0 ) { 
-    @nodes = sort keys %pestat; 
+    @nodes = keys %pestat; 
     $fh = $mail ? send_mail($mail, $output) : IO::File->new($output,'w'); 
 }
 
 print "\n> Activating Dominator Portable Psychological Diagnosis and Suppression System\n"; 
-print "\n> Performing Cymatic Scan ...\n"; 
+print "\n> Performing Cymatic Scan\n"; 
 
 # cymatic scan 
 my %target = map { $_ => $pestat{$_} } @nodes; 
-my %orphan = orphan_process(\%target); 
+my %orphan = orphan_process(\%target, \%passwd); 
 
-# reorder nodes if needed 
-for my $node ( sort @nodes ) { 
+@nodes = sort @nodes; 
+for my $node ( @nodes ) { 
+    # preceding blank line
     if ( $node eq $nodes[0] ) { print "\n" }
 
     # header 
@@ -94,9 +103,9 @@ for my $node ( sort @nodes ) {
         print $fh "free\n"; 
     # excl node 
     } else {  
-        map { map { print $fh "@$_\n" } @$_ } @{$orphan{$node}}; 
+        map { print $fh "@$_\n" } @{$orphan{$node}}; 
     }
 
-    # trailing blank line
+    # trailing blank line in output
     if ( $node ne $nodes[-1] ) { print $fh "\n" }
 }
