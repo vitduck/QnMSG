@@ -32,7 +32,7 @@ Print the help message and exit
 
 =item B<-d>
 
-List of partitions to scan (default: /home)
+List of partitions to scan (default: all)
 
 =item B<-q>
 
@@ -45,7 +45,7 @@ Allowed disk quota in GB (default: disk_capacity/number_of_user)
 # default optional arguments 
 my $help       = 0; 
 my $quota      = 0;  
-my @partitions = ( );  
+my @partitions = ();  
 
 # parse optional arguments 
 GetOptions( 
@@ -62,16 +62,16 @@ GetOptions(
 if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 
 # user authentication 
-authenticate('Kougami Shinya', 'Enforcer'); 
-
-# default partition to scan 
-if ( @partitions == 0 ) { push @partitions, '/home' }
+authenticate(); 
 
 # user and homedir information  
 my %passwd = read_passwd();  
 
 # partition table 
 my %df = read_partition(); 
+
+# default partition to scan  
+if ( @partitions == 0 ) { push @partitions, keys %passwd }
 
 # print disk usage from all home partition 
 for my $home ( @partitions ) { 
@@ -94,9 +94,9 @@ for my $home ( @partitions ) {
     my $quota = $df{$home}/scalar(@users); 
 
     # format 
-    my $luser   = (sort {$b <=> $a} map length($_), keys %du )[0]; 
-    my $ldisk   = (sort {$b <=> $a} map length($_), values %du)[0]; 
-    my $summary = sprintf "%${luser}s  %${ldisk}d GB  %6.2f %%", 'total', $total, 100*$total/$df{$home};  
+    my $luser   = ( sort {$b <=> $a} map length($_), keys %du )[0]; 
+    my $ldisk   = length($df{$home});
+    my $summary = sprintf "%-${luser}s  %${ldisk}d GB  %6.2f %%", 'total', $total, 100*$total/$df{$home};  
 
     # header 
     print "\n$home: $df{$home} GB\n"; 
@@ -104,10 +104,12 @@ for my $home ( @partitions ) {
 
     for my $user ( @users ) { 
         printf "%-${luser}s  %${ldisk}d GB  %6.2f %%", $user, $du{$user}, 100*$du{$user}/$df{$home}; 
-        # print a [*] if a user uses more than cut-off 
+        # print a [*] if a user uses more than hdd quota
         $du{$user} >= $quota ? print " [*]\n" : print "\n"; 
     }
 
     printf "%s\n", "-" x length($summary); 
+
+    # total 
     print "$summary\n"; 
 }
