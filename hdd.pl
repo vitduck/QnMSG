@@ -61,8 +61,8 @@ GetOptions(
 # help message 
 if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 
-# user authentication 
-authenticate(); 
+# root authentication 
+if ( $< != 0 ) { die "Root previlege is required\n" } 
 
 # user and homedir information  
 my %passwd = read_passwd();  
@@ -71,7 +71,7 @@ my %passwd = read_passwd();
 my %df = read_partition(); 
 
 # default partition to scan  
-if ( @partitions == 0 ) { push @partitions, keys %passwd }
+if ( @partitions == 0 ) { push @partitions, sort keys %passwd }
 
 # print disk usage from all home partition 
 for my $home ( @partitions ) { 
@@ -82,6 +82,7 @@ for my $home ( @partitions ) {
     }
 
     # w.r.t to partition 
+    print "\n"; 
     my %du = disk_usage($passwd{$home}); 
 
     # list of user and total 
@@ -111,5 +112,5 @@ for my $home ( @partitions ) {
     printf "%s\n", "-" x length($summary); 
 
     # total 
-    print "$summary\n\n"; 
+    print "$summary\n"; 
 }

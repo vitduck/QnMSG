@@ -34,8 +34,9 @@ our %CID = (
 # return 
 # -> null 
 sub authenticate { 
-    print "\n"; 
     if ( $< == 0 ) {  
+        print "\n<> Activating Dominator Portable Psychological Diagnosis and Suppression System\n"; 
+
         # flatten array ref 
         my @CID  = map @$_, values %CID;  
 
@@ -43,12 +44,15 @@ sub authenticate {
         my $user = $CID[int(rand(@CID))]; 
 
         # interface to Sibyl
-        print "> User authentication: $user\n"; 
-        print "> Affiliation: Public Safety Bureau, Criminal Investigation Deparment\n"; 
-        print "> You are a valid user\n\n"; 
+        print "<> User authentication: $user\n"; 
+        print "<> Affiliation: Public Safety Bureau, Criminal Investigation Deparment\n"; 
+        print "<> Dominator usage approval confirmed. You are a valid user\n"; 
     } else { 
-        die "> You are an invalid user\n"; 
+        print "\n"; 
+        die "<> You are an invalid user\n"; 
     }
+
+    return; 
 }
 
 # read CentOS release version 
@@ -265,22 +269,48 @@ sub orphan_process {
 # return 
 # -> null 
 sub kill_process { 
-    my ( $pid, $proc ) = @_; 
+    my ( $node, $proc, $pid ) = @_; 
     
     my $host = read_host(); 
+    
+    # remote connection 
     my $ssh  = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
 
-    # stupid ps output
-    my ( $target ) =  grep { $pid =~/$_->[3]|$_->[4]/ } @$proc;  
+    # verify process ID
+    my ( @targets, @kpids );  
+    for my $id ( @$pid ) { 
+        my ( $target ) =  grep { $id eq $_->[1] } @$proc;  
+        if ( $target ) { 
+            push @targets, $target; 
+            push @kpids, $target->[1]; 
+        }
+    }
+    
+    # yes 
+    if ( @targets ) { 
+        print  "\n"; 
+        printf "<> Crime coefficient is %d\n", int(rand(100))+300; 
+        print  "<> Enforcement mode: lethal eliminator.\n";  
+        print  "<> Please aim carefully and eliminate the target.\n"; 
 
-    if ( $target ) { 
+        # print targets 
+        print "\n"; 
+        map { print "-> @$_\n" } @targets; 
+       
+        # user confirmation 
+        print "\n"; 
+        print "<> Proceed: [y/n]: ";  
+        chomp ( my $answer = <STDIN> );  
 
-        print "\nEnforcement mode: Lethal Eliminator\n";  
+        # remote kill
+        if ( $answer =~ /^y/i ) { exec "$ssh $node kill -9 @kpids" }
+    # no
     } else { 
-        die "Invalid taget for enforcement\n"; 
+        print "\n"; 
+        printf "<> Crime coefficient is %d\n", int(rand(100)); 
+        print  "<> Not a taget for enforcement\n"; 
+        die    "<> The trigger will be locked\n";
     } 
-
-    return; 
 }
 
 #-----------# 
@@ -352,21 +382,18 @@ sub construct_status_bar {
 sub print_status_bar { 
     my ( $status, $count, $ncol, $length ) = @_; 
 
-    # first 
     if ( $count % $ncol == 0 ) { 
-        printf "%-${length}s", $status->[$count];  
-        # only single item ? 
-        if ( @$status == 1 ) { print "\n" }
-    # end of line or final 
-    } elsif ( $count % $ncol == $ncol -1 || $count == $#$status ) { 
-        printf " -> %-${length}s\n", $status->[$count]; 
-    # the rest
-    } else { 
-        printf " -> %-${length}s", $status->[$count]; 
+        printf "%-${length}s", $status->[$count] 
+    } else  { 
+        printf " ... %-${length}s", $status->[$count]; 
     }
 
+    # trailing new line 
+    if ( $count == $#$status or $count % $ncol == $ncol -1 ) { print "\n" }
+    
     return; 
 } 
+
 
 # rsh and parse the output of ps for user processes 
 # args 
@@ -378,13 +405,22 @@ sub print_status_bar {
 sub read_ps { 
     my ( $node, $status, $passwd ) = @_; 
     
-    my @procs = ( ); 
+    my $ssh;  
+    my @procs = (); 
+    my $host = read_host(); 
     
     # return 1 for down* node
     if ( $status =~ /down\*/ ) { return 1 } 
 
+    # root ? 
+    if ( $< == 0 ) { 
+        $ssh = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
+    } else { 
+        $ssh = 'rsh'; 
+    } 
+    
     # remote connect to capture output of ps
-    my @ps = read_pipe("rsh $node ps --no-header aux"); 
+    my @ps = read_pipe("$ssh $node ps --no-header aux"); 
 
     # filter out the user processes ( UID > 500 ) 
     for ( @ps ) { 

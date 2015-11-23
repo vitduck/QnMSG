@@ -10,14 +10,14 @@ use Getopt::Long;
 use Pod::Usage; 
 use POSIX qw/strftime/;
 
-use Sibyl qw/authenticate read_passwd read_pestat orphan_process send_mail/; 
+use Sibyl qw/authenticate read_passwd read_pestat orphan_process kill_process send_mail/; 
 
 my @usages = qw/NAME SYSNOPSIS OPTIONS/;  
 
 # POD 
 =head1 NAME 
 
-dominator.pl: The Eye of the Sibyl
+dominator.pl: The eye of the Sibyl
 
 =head1 SYNOPSIS
 
@@ -50,7 +50,7 @@ E-mail of recipient
 # default optional arguments 
 my $help   = 0; 
 my @nodes  = (); 
-my $pid    = 0; 
+my @pids   = (); 
 my $mail   = ''; 
 
 # var
@@ -63,6 +63,7 @@ GetOptions(
     'h'       => \$help, 
     'n=s{1,}' => \@nodes, 
     'm=s'     => \$mail,
+    'k=i{1,}' => \@pids, 
 ) or pod2usage(-verbose => 1); 
 
 # help message 
@@ -71,23 +72,22 @@ if ( $help ) { pod2usage(-verbose => 99, -section => \@usages) }
 # nodes status 
 my %pestat = read_pestat();  
 
-# user 
+# users 
 my %passwd = read_passwd();  
 
-# branching filehandler
+# scanning mode
 if ( @nodes == 0 ) { 
-    @nodes = keys %pestat; 
+    @nodes = sort keys %pestat; 
     $fh = $mail ? send_mail($mail, $output) : IO::File->new($output,'w'); 
+} else { 
+    @nodes = sort grep exists $pestat{$_}, @nodes; 
 }
 
-print "\n> Activating Dominator Portable Psychological Diagnosis and Suppression System\n"; 
-print "\n> Performing Cymatic Scan\n"; 
+print "\n<> Performing cymatic scan\n"; 
 
 # cymatic scan 
 my %target = map { $_ => $pestat{$_} } @nodes; 
 my %orphan = orphan_process(\%target, \%passwd); 
-
-@nodes = sort @nodes; 
 for my $node ( @nodes ) { 
     # preceding blank line
     if ( $node eq $nodes[0] ) { print "\n" }
@@ -108,4 +108,13 @@ for my $node ( @nodes ) {
 
     # trailing blank line in output
     if ( $node ne $nodes[-1] ) { print $fh "\n" }
+}
+
+# kill process 
+if ( @pids ) { 
+    if ( @nodes > 1 ) { die "\n<> -k is only applicable to single node\n" }
+    # root previlege is required 
+    authenticate(); 
+    # remote kill process
+    kill_process($nodes[0], $orphan{$nodes[0]}, \@pids);  
 }
