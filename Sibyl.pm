@@ -8,7 +8,7 @@ use IO::Pipe;
 use Exporter; 
 use File::Basename; 
 
-our @scan   = qw/disk_usage orphan_process kill_process/; 
+our @scan   = qw/disk_usage cymatic_scan pkill/; 
 our @system = qw/authenticate read_release read_passwd read_host read_pestat read_partition send_mail/; 
 
 our @ISA         = qw/Exporter/; 
@@ -35,7 +35,7 @@ our %CID = (
 # -> null 
 sub authenticate { 
     if ( $< == 0 ) {  
-        print "\n<> Activating Dominator Portable Psychological Diagnosis and Suppression System\n"; 
+        print "\n> Activating Dominator Portable Psychological Diagnosis and Suppression System\n"; 
 
         # flatten array ref 
         my @CID  = map @$_, values %CID;  
@@ -44,16 +44,17 @@ sub authenticate {
         my $user = $CID[int(rand(@CID))]; 
 
         # interface to Sibyl
-        print "<> User authentication: $user\n"; 
-        print "<> Affiliation: Public Safety Bureau, Criminal Investigation Deparment\n"; 
-        print "<> Dominator usage approval confirmed. You are a valid user\n"; 
+        print "> User authentication: $user\n"; 
+        print "> Affiliation: Public Safety Bureau, Criminal Investigation Deparment\n"; 
+        print "> Dominator usage approval confirmed. You are a valid user\n"; 
     } else { 
         print "\n"; 
-        die "<> You are an invalid user\n"; 
+        die "> You are an invalid user. The trigger will be locked\n"; 
     }
 
     return; 
 }
+
 
 # read CentOS release version 
 # args 
@@ -231,7 +232,7 @@ sub disk_usage {
 # -< hash of pestat 
 # return 
 # -> hash of process 
-sub orphan_process { 
+sub cymatic_scan { 
     my ( $pestat, $passwd ) = @_; 
    
     # status 
@@ -242,9 +243,12 @@ sub orphan_process {
     my @users  = map keys %$_, values %$passwd; 
 
     my $count = 0; 
-    my $ncol  = 4;
+    my $ncol  = 8;
    
     my %orphan = ( ); 
+
+    print "\n> Performing cymatic scan\n"; 
+    
     for my $node ( sort keys %$pestat ) {  
         # status 
         print_status_bar(\@status, $count, $ncol, $status_length); 
@@ -268,15 +272,17 @@ sub orphan_process {
 # -< ref of PID array 
 # return 
 # -> null 
-sub kill_process { 
+sub pkill { 
     my ( $node, $proc, $pid ) = @_; 
     
-    my $host = read_host(); 
-    
     # remote connection 
+    my $host = read_host(); 
     my $ssh  = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
 
-    # verify process ID
+    # free or down nodes 
+    if ( $proc == 0 || $proc == 1 ) { crime_coefficient(int(rand(100))) }
+
+    # verify process ID or excl nodes 
     my ( @targets, @kpids );  
     for my $id ( @$pid ) { 
         my ( $target ) =  grep { $id eq $_->[1] } @$proc;  
@@ -286,31 +292,31 @@ sub kill_process {
         }
     }
     
-    # yes 
-    if ( @targets ) { 
-        print  "\n"; 
-        printf "<> Crime coefficient is %d\n", int(rand(100))+300; 
-        print  "<> Enforcement mode: lethal eliminator.\n";  
-        print  "<> Please aim carefully and eliminate the target.\n"; 
+    # crime coefficient ? 
+    @targets 
+    ? crime_coefficient(int(rand(100))+300) 
+    : crime_coefficient(int(rand(100))); 
 
-        # print targets 
-        print "\n"; 
-        map { print "-> @$_\n" } @targets; 
-       
-        # user confirmation 
-        print "\n"; 
-        print "<> Proceed: [y/n]: ";  
-        chomp ( my $answer = <STDIN> );  
+    # list target  
+    print "\n"; 
+    my $fdash = (sort { $b <=> $a } map { length("@$_") } @targets)[0];   
 
-        # remote kill
-        if ( $answer =~ /^y/i ) { exec "$ssh $node kill -9 @kpids" }
-    # no
-    } else { 
-        print "\n"; 
-        printf "<> Crime coefficient is %d\n", int(rand(100)); 
-        print  "<> Not a taget for enforcement\n"; 
-        die    "<> The trigger will be locked\n";
-    } 
+    printf "%s\n", "-" x $fdash; 
+    map { print "@$_\n" } @targets; 
+    printf "%s\n", "-" x $fdash; 
+
+    # user confirmation 
+    print "\n"; 
+    print "> Proceed: [y/n]: ";  
+    chomp ( my $answer = <STDIN> );  
+
+    # remote kill
+    if ( $answer =~ /^y/i ) { 
+        system "$ssh $node kill -9 @kpids";  
+        if ( $?== 0 ) { print "> Done!\n" } 
+    }
+
+    return; 
 }
 
 #-----------# 
@@ -385,7 +391,7 @@ sub print_status_bar {
     if ( $count % $ncol == 0 ) { 
         printf "%-${length}s", $status->[$count] 
     } else  { 
-        printf " ... %-${length}s", $status->[$count]; 
+        printf " .. %-${length}s", $status->[$count]; 
     }
 
     # trailing new line 
@@ -452,6 +458,27 @@ sub read_ps {
 
     # return 0 for free nodes 
     return ( @procs ? @procs : 0 );  
+}
+
+# args
+# -< target's crime coefficient 
+# return 
+# -> null 
+sub crime_coefficient { 
+    my ( $coef ) = @_; 
+        
+    printf "\n> Crime coefficient is %d\n", $coef;  
+
+    if ( $coef < 100 ) { 
+        die  "> Not a taget for enforcement. The trigger will be locked\n";
+    } elsif ( $coef > 300 ) { 
+        print "> Enforcement mode: lethal eliminator. Please aim carefully and eliminate the target.\n"; 
+    } else { 
+        print "> Enforcement mode: Non-Lethal Paralyzer. Please aim calmly and subdue the target.\n" 
+    }
+
+    return; 
+        
 }
 
 # last evaluated expression

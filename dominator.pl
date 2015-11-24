@@ -10,7 +10,7 @@ use Getopt::Long;
 use Pod::Usage; 
 use POSIX qw/strftime/;
 
-use Sibyl qw/authenticate read_passwd read_pestat orphan_process kill_process send_mail/; 
+use Sibyl qw/authenticate read_passwd read_pestat cymatic_scan pkill send_mail/; 
 
 my @usages = qw/NAME SYSNOPSIS OPTIONS/;  
 
@@ -83,11 +83,9 @@ if ( @nodes == 0 ) {
     @nodes = sort grep exists $pestat{$_}, @nodes; 
 }
 
-print "\n<> Performing cymatic scan\n"; 
-
 # cymatic scan 
 my %target = map { $_ => $pestat{$_} } @nodes; 
-my %orphan = orphan_process(\%target, \%passwd); 
+my %orphan = cymatic_scan(\%target, \%passwd); 
 for my $node ( @nodes ) { 
     # preceding blank line
     if ( $node eq $nodes[0] ) { print "\n" }
@@ -116,5 +114,5 @@ if ( @pids ) {
     # root previlege is required 
     authenticate(); 
     # remote kill process
-    kill_process($nodes[0], $orphan{$nodes[0]}, \@pids);  
+    pkill($nodes[0], $orphan{$nodes[0]}, \@pids);  
 }
