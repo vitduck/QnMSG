@@ -6,12 +6,12 @@ use warnings;
 use Data::Dumper; 
 use Getopt::Long; 
 use File::Spec; 
-use List::Util qw/sum/;  
+use List::Util qw( sum );  
 use Pod::Usage; 
 
-use Sibyl qw/authenticate read_passwd read_partition disk_usage/; 
+use Sibyl qw( authenticate read_passwd read_partition disk_usage );  
 
-my @usages = qw/NAME SYSNOPSIS OPTIONS/; 
+my @usages = qw( NAME SYSNOPSIS OPTIONS ); 
 
 # POD 
 =head1 NAME 
@@ -50,12 +50,12 @@ my @partitions = ();
 # parse optional arguments 
 GetOptions( 
     'h'       => \$help, 
+    'q=i'     => \$quota,
     'd=s{1,}' => sub { 
         my ( $opt, $arg ) = @_; 
         # remove the trailing dash 
         push @partitions, File::Spec->canonpath($arg); 
     },  
-    'q=i'     => \$quota,
 ) or pod2usage(-verbose => 1); 
 
 # help message 

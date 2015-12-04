@@ -8,10 +8,10 @@ use IO::Pipe;
 use Exporter; 
 use File::Basename; 
 
-our @scan   = qw/disk_usage cymatic_scan pkill/; 
-our @system = qw/authenticate read_release read_passwd read_host read_pestat read_partition send_mail/; 
+our @scan   = qw( disk_usage cymatic_scan pkill );  
+our @system = qw( authenticate read_release read_passwd read_host read_pestat read_partition send_mail );  
 
-our @ISA         = qw/Exporter/; 
+our @ISA         = qw( Exporter );  
 our @EXPORT      = ();  
 our @EXPORT_OK   = ( @system, @scan ); 
 our %EXPORT_TAGS = ( 
@@ -62,10 +62,7 @@ sub authenticate {
 # return 
 # -> version 
 sub read_release { 
-    my ( $file ) = @_; 
-    $file = defined $file ? $file : '/etc/redhat-release'; 
-    
-    my @lines = read_file($file); 
+    my @lines = read_file('/etc/redhat-release'); 
     my ( $version ) = ( $lines[0] =~ /(\d*\.\d*)/g ); 
     
     return $version; 
@@ -77,23 +74,23 @@ sub read_release {
 # return
 # -> hash of passwd 
 sub read_passwd { 
-    my ( $file ) = @_;  
-    $file = defined $file ? $file : '/etc/passwd';  
-
-    my %passwd = ( ); 
+    my %passwd = (); 
+    my @ignore = qw( nfsnobody ); 
     
-    for ( read_file($file) ) { 
-        if ( /\/home\d?\// ) { 
-            my ( $user, $uid, $homedir ) = ( split ':' )[0,2,5]; 
-            
-            # skip system user 
-            if ( $uid < 500 ) { next }
-            
-            # skip pseudo-user ? 
-            if ( ! -d $homedir ) { next } 
-        
-            $passwd{dirname($homedir)}{$user} = $homedir;  
-        }
+    for ( read_file('/etc/passwd') ) { 
+        my ( $user, $uid, $homedir ) = ( split ':' )[0,2,5]; 
+
+        # skip system user 
+        if ( $uid < 500 ) { next }
+
+        # skip pseudo-user ? 
+        if ( ! -d $homedir ) { next } 
+
+        # skip user in ignore list 
+        if ( grep $user eq $_, @ignore ) { next }
+
+        # hash: user -> homedir
+        $passwd{dirname($homedir)}{$user} = $homedir;  
     }
     
     return %passwd;  
@@ -105,11 +102,8 @@ sub read_passwd {
 # return
 # -> first hostname 
 sub read_host { 
-    my ( $file ) = @_; 
-    $file = defined $file ? $file : '/etc/mail/local-host-names'; 
-
-    my @hosts = ( ); 
-    for ( read_file($file) ) { 
+    my @hosts = (); 
+    for ( read_file('/etc/mail/local-host-names') ) { 
         # skip the comment
         if ( /^\s*#/ ) { next } 
         push @hosts, $_; 
@@ -152,7 +146,6 @@ sub read_partition {
     # remove df's output header 
     shift @lines;  
     
-    my ( $user ) = @_; 
     # construct hash 
     my %partition = map { ( split )[-1,1] } @lines; 
 
@@ -171,18 +164,21 @@ sub read_partition {
 sub send_mail { 
     my ( $recipient, $title ) = @_; 
 
-    my $sender    = $ENV{USER}; 
-    
+    # basic info
+    my $sender  = $ENV{USER}; 
+    my $host    = read_host(); 
+    my $version = read_release(); 
+
     # file handler
     # \n must be removed from $host with chomp 
     # otherwise mail will complain about invalid \012 char
-    my $host = read_host(); 
     my $mailfh = IO::Pipe->new; 
-    if ( read_host() =~ /kohn/ ) { 
-        # centos 5.x on kohn
+    
+    if ( $version =~ /5\./ ) { 
+        # centos 5.x (kohn)
         $mailfh->writer("mail -s '$title' '$recipient' -- -f '$sender\@$host'"); 
     } else {
-        # centos 6.x on sham/bloch
+        # centos 6.x (sham/bloch)
         $mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
     }
 
@@ -204,8 +200,8 @@ sub disk_usage {
     my %du = ( ); 
 
     # status 
-    my @status = construct_status_bar($passwd);  
-    my $status_length = ( sort { $b <=> $a } map length($_), @status )[0]; 
+    my @bar = construct_progress_bar($passwd);  
+    my $status_length = ( sort { $b <=> $a } map length($_), @bar )[0]; 
 
     my $count = 0;  
     my $ncol  = 4; 
@@ -214,7 +210,7 @@ sub disk_usage {
         my $homedir = $passwd->{$user}; 
         
         # status 
-        print_status_bar(\@status, $count, $ncol, $status_length); 
+        print_progress_bar(\@bar, $count, $ncol, $status_length); 
         
         # capture du output with backtick, remove the G suffix 
         $du{$user} = (split ' ', `du -sBG $homedir`)[0]; 
@@ -236,14 +232,14 @@ sub cymatic_scan {
     my ( $pestat, $passwd ) = @_; 
    
     # status 
-    my @status = construct_status_bar($pestat, 'down');  
-    my $status_length = ( sort { $b <=> $a } map length($_), @status )[0]; 
+    my @bar = construct_progress_bar($pestat, 'down');  
+    my $status_length = ( sort { $b <=> $a } map length($_), @bar )[0]; 
     
     # user list
     my @users  = map keys %$_, values %$passwd; 
 
     my $count = 0; 
-    my $ncol  = 8;
+    my $ncol  = 4;
    
     my %orphan = ( ); 
 
@@ -251,7 +247,7 @@ sub cymatic_scan {
     
     for my $node ( sort keys %$pestat ) {  
         # status 
-        print_status_bar(\@status, $count, $ncol, $status_length); 
+        print_progress_bar(\@bar, $count, $ncol, $status_length); 
        
         # read process
         my @procs = read_ps($node, $pestat->{$node}, \@users);  
@@ -364,17 +360,17 @@ sub read_pipe {
 # -< bad status 
 # return 
 # -> array of status
-sub construct_status_bar { 
+sub construct_progress_bar { 
     my ( $data, $bad ) = @_;  
 
-    my @status = sort keys %$data; 
+    my @bar = sort keys %$data; 
 
     # Insert status into item list
     if ( defined $bad ) { 
-        map { $_ = $data->{$_} if $data->{$_} =~ /$bad/ } @status;  
+        map { $_ = $data->{$_} if $data->{$_} =~ /$bad/ } @bar;  
     }
 
-    return @status;  
+    return @bar; 
 }
 
 # print status bar 
@@ -385,13 +381,13 @@ sub construct_status_bar {
 # -< length for format print 
 # return 
 # -> null
-sub print_status_bar { 
+sub print_progress_bar { 
     my ( $status, $count, $ncol, $length ) = @_; 
 
     if ( $count % $ncol == 0 ) { 
         printf "%-${length}s", $status->[$count] 
     } else  { 
-        printf " .. %-${length}s", $status->[$count]; 
+        printf " > %-${length}s", $status->[$count]; 
     }
 
     # trailing new line 
@@ -421,6 +417,7 @@ sub read_ps {
     # root ? 
     if ( $< == 0 ) { 
         $ssh = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
+    # normal user
     } else { 
         $ssh = 'rsh'; 
     } 

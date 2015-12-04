@@ -3,16 +3,15 @@
 use strict; 
 use warnings; 
 
-use Data::Dumper; 
 use IO::File;
 use File::Basename;
 use Getopt::Long; 
 use Pod::Usage; 
-use POSIX qw/strftime/;
+use POSIX qw( strftime );
 
-use Sibyl qw/authenticate read_passwd read_pestat cymatic_scan pkill send_mail/; 
+use Sibyl qw( authenticate read_passwd read_pestat cymatic_scan pkill send_mail );  
 
-my @usages = qw/NAME SYSNOPSIS OPTIONS/;  
+my @usages = qw( NAME SYSNOPSIS OPTIONS );  
 
 # POD 
 =head1 NAME 
@@ -86,6 +85,7 @@ if ( @nodes == 0 ) {
 # cymatic scan 
 my %target = map { $_ => $pestat{$_} } @nodes; 
 my %orphan = cymatic_scan(\%target, \%passwd); 
+
 for my $node ( @nodes ) { 
     # preceding blank line
     if ( $node eq $nodes[0] ) { print "\n" }
