@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage; 
 use POSIX qw( strftime );
 
-use Sibyl qw( authenticate read_passwd read_pestat cymatic_scan pkill send_mail );  
+use Sibyl qw( authenticate read_passwd read_pestat cymatic_scan pkill );  
 
 my @usages = qw( NAME SYSNOPSIS OPTIONS );  
 
@@ -50,7 +50,7 @@ E-mail of recipient
 my $help   = 0; 
 my @nodes  = (); 
 my @pids   = (); 
-my $mail   = ''; 
+#my $mail   = ''; 
 
 # var
 my $fh     = *STDOUT;   
@@ -61,7 +61,7 @@ my $output = "scan-$date.dat";
 GetOptions( 
     'h'       => \$help, 
     'n=s{1,}' => \@nodes, 
-    'm=s'     => \$mail,
+    #'m=s'     => \$mail,
     'k=i{1,}' => \@pids, 
 ) or pod2usage(-verbose => 1); 
 
@@ -77,7 +77,8 @@ my %passwd = read_passwd();
 # scanning mode
 if ( @nodes == 0 ) { 
     @nodes = sort keys %pestat; 
-    $fh = $mail ? send_mail($mail, $output) : IO::File->new($output,'w'); 
+    #$fh = $mail ? send_mail($mail, $output) : IO::File->new($output,'w'); 
+    $fh = IO::File->new($output,'w'); 
 } else { 
     @nodes = sort grep exists $pestat{$_}, @nodes; 
 }

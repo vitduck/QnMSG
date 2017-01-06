@@ -9,7 +9,7 @@ use Exporter;
 use File::Basename; 
 
 our @scan   = qw( disk_usage cymatic_scan pkill );  
-our @system = qw( authenticate read_release read_passwd read_host read_pestat read_partition send_mail );  
+our @system = qw( authenticate read_release read_passwd read_host read_pestat read_partition );  
 
 our @ISA         = qw( Exporter );  
 our @EXPORT      = ();  
@@ -101,17 +101,17 @@ sub read_passwd {
 # -< host file ( /etc/mail/local-host-names )
 # return
 # -> first hostname 
-sub read_host { 
-    my @hosts = (); 
-    for ( read_file('/etc/mail/local-host-names') ) { 
-        # skip the comment
-        if ( /^\s*#/ ) { next } 
-        push @hosts, $_; 
-    }
+#sub read_host { 
+    #my @hosts = (); 
+    #for ( read_file('/etc/mail/local-host-names') ) { 
+        ## skip the comment
+        #if ( /^\s*#/ ) { next } 
+        #push @hosts, $_; 
+    #}
     
-    # return the first host
-    return $hosts[0]; 
-}
+    ## return the first host
+    #return $hosts[0]; 
+#}
 
 # get node tatus of nodes 
 # args
@@ -124,7 +124,8 @@ sub read_pestat {
     # pipe to pestat 
     for ( read_pipe('pestat') ) { 
         # skip the header 
-        if ( /node\s+state/ ) { next }
+        if ( /Node\s+GN/ ) { next }
+        if ( /Netload /  ) { next } 
 
         # %node: ( id => status )
         my ( $node_id, $node_status ) = ( split )[0,1]; 
@@ -161,29 +162,29 @@ sub read_partition {
 # -< title of email 
 # return
 # -> mail filehandler
-sub send_mail { 
-    my ( $recipient, $title ) = @_; 
+#sub send_mail { 
+    #my ( $recipient, $title ) = @_; 
 
-    # basic info
-    my $sender  = $ENV{USER}; 
-    my $host    = read_host(); 
-    my $version = read_release(); 
+    ## basic info
+    #my $sender  = $ENV{USER}; 
+    #my $host    = read_host(); 
+    #my $version = read_release(); 
 
-    # file handler
-    # \n must be removed from $host with chomp 
-    # otherwise mail will complain about invalid \012 char
-    my $mailfh = IO::Pipe->new; 
+    ## file handler
+    ## \n must be removed from $host with chomp 
+    ## otherwise mail will complain about invalid \012 char
+    #my $mailfh = IO::Pipe->new; 
     
-    if ( $version =~ /5\./ ) { 
-        # centos 5.x (kohn)
-        $mailfh->writer("mail -s '$title' '$recipient' -- -f '$sender\@$host'"); 
-    } else {
-        # centos 6.x (sham/bloch)
-        $mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
-    }
+    #if ( $version =~ /5\./ ) { 
+        ## centos 5.x (kohn)
+        #$mailfh->writer("mail -s '$title' '$recipient' -- -f '$sender\@$host'"); 
+    #} else {
+        ## centos 6.x (sham/bloch)
+        #$mailfh->writer("mail -s '$title' -r '$sender\@$host' '$recipient'"); 
+    #}
 
-    return $mailfh; 
-}
+    #return $mailfh; 
+#}
 
 #------#
 # SCAN #
@@ -409,18 +410,18 @@ sub read_ps {
     
     my $ssh;  
     my @procs = (); 
-    my $host = read_host(); 
+    #my $host = read_host(); 
     
     # return 1 for down* node
     if ( $status =~ /down\*/ ) { return 1 } 
 
     # root ? 
-    if ( $< == 0 ) { 
-        $ssh = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
-    # normal user
-    } else { 
-        $ssh = 'rsh'; 
-    } 
+    #if ( $< == 0 ) { 
+        #$ssh = $host =~ /kohn/ ? 'rsh' : 'ssh'; 
+    ## normal user
+    #} else { 
+        $ssh = 'ssh'; 
+    #} 
     
     # remote connect to capture output of ps
     my @ps = read_pipe("$ssh $node ps --no-header aux"); 
